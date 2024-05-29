@@ -1,9 +1,10 @@
 #include <iostream>
 #include <vector>
-#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <string>
+#include <algorithm>
 using namespace std;
 
 enum BUILDING_KIND
@@ -80,11 +81,45 @@ public:
         building_kind = other.building_kind;
     }
 
+    int get_x() const
+    {
+        return x;
+    }
+
+    int get_y() const
+    {
+        return y;
+    }
+
+    BUILDING_KIND get_building_kind() const
+    {
+        return building_kind;
+    }
+
     string get_building_id() const
     {
         return building_id;
     }
 
+    void set_x(int _x)
+    {
+        x = _x;
+    }
+
+    void set_y(int _y)
+    {
+        y = _y;
+    }
+
+    void set_building_kind(BUILDING_KIND kind)
+    {
+        building_kind = kind;
+    }
+
+    void set_building_id(string ID)
+    {
+        building_id = ID;
+    }
     friend class road;
     friend class graph;
 };
@@ -245,3 +280,18 @@ bool search_building(vector<building> buildings, string target)
     return false;
 }
 
+graph initiate_graph()
+{
+    int building_count;
+    int edge_count;
+
+    cout << "please enter the buildings number" << endl;
+    cin >> building_count;
+
+    cout << "please enter the roads number" << endl;
+    cin >> edge_count;
+
+    graph g(building_count, edge_count);
+
+    return g;
+}
