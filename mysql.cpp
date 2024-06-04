@@ -21,7 +21,7 @@ void store_graph_to_database(const graph &g, const string &graph_name, const str
     try
     {
         sql::mysql::MySQL_Driver *driver = sql::mysql::get_mysql_driver_instance();
-        unique_ptr<sql::Connection> con(driver->connect("tcp://127.0.0.1:3306", "root", "8911825zxt"));
+        unique_ptr<sql::Connection> con(driver->connect("tcp://127.0.0.1:3306", "admin", "admin123"));
         con->setSchema("Graphs");
 
         // 插入图信息
@@ -110,13 +110,13 @@ void store_graph_to_database(const graph &g, const string &graph_name, const str
     }
 }
 
-graph load_graph_from_database(const string& graph_name)
+graph load_graph_from_database(const string &graph_name)
 {
     // Connect to the database
     try
     {
         sql::mysql::MySQL_Driver *driver = sql::mysql::get_mysql_driver_instance();
-        unique_ptr<sql::Connection> con(driver->connect("tcp://127.0.0.1:3306", "root", "8911825zxt"));
+        unique_ptr<sql::Connection> con(driver->connect("tcp://127.0.0.1:3306", "admin", "admin123"));
         con->setSchema("Graphs");
 
         // Create a prepared statement to fetch graph_id
@@ -172,12 +172,12 @@ graph load_graph_from_database(const string& graph_name)
             string road_id = res_roads->getString("road_id");
 
             string start_id = "building" + to_string(start_building_id);
-            string end_id = "building"+ to_string(end_building_id);
+            string end_id = "building" + to_string(end_building_id);
 
             // Find start and end buildings in the graph
-            building* start = nullptr;
-            building* end = nullptr;
-            for (auto& b : g.buildings)
+            building *start = nullptr;
+            building *end = nullptr;
+            for (auto &b : g.buildings)
             {
                 if (b.get_building_id() == start_id)
                     start = &b;
@@ -210,13 +210,55 @@ graph load_graph_from_database(const string& graph_name)
     }
 }
 
+void print_graph_info()
+{
+    sql::mysql::MySQL_Driver *driver;
+    sql::Connection *con;
+
+    // 创建MySQL连接
+    driver = sql::mysql::get_mysql_driver_instance();
+    con = driver->connect("tcp://127.0.0.1:3306", "admin", "admin123");
+
+    // 连接到数据库
+    con->setSchema("Graphs");
+
+    // 执行查询语句
+    sql::Statement *stmt;
+    sql::ResultSet *res;
+    stmt = con->createStatement();
+    res = stmt->executeQuery("SELECT * FROM graphs");
+
+    // 打印查询结果
+    while (res->next())
+    {
+        cout << "graph_name: " << res->getString("graph_name") << endl;
+        cout << "description " << res->getString("description") << endl;
+        cout << endl;
+        // 继续打印其他字段
+    }
+
+    // 释放内存和关闭连接
+    delete res;
+    delete stmt;
+    delete con;
+}
+
 int main()
 {
-    // graph g(30, 100); 
+    srand(static_cast<unsigned>(time(nullptr)));
+    // int building_num;
+    // int road_num;
+    // cin >> building_num;
+    // cin >> road_num;
+    // graph g(building_num,road_num);
+
+    // graph g(30, 100);
     // store_graph_to_database(g, "Example Graph", "This is an example graph.");
 
-    graph g = load_graph_from_database("Differ");
-    g.print();
+    // graph g = load_graph_from_database("Differ");
+    // g.print();
+
+    print_graph_info();
 
     return 0;
 }
