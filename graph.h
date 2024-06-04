@@ -28,8 +28,6 @@ enum BUILDING_KIND
 class building;
 class road;
 class graph;
-vector<building> buildings;
-vector<road> roads;
 
 class building
 {
@@ -40,12 +38,7 @@ private:
     BUILDING_KIND building_kind;
 
 public:
-    building()
-    {
-        x = rand() % 1500;
-        y = rand() % 1500;
-        building_kind = static_cast<BUILDING_KIND>(rand() % 14);
-    }
+    building() : x(rand() % 1500), y(rand() % 1500) { building_kind = static_cast<BUILDING_KIND>(rand() % 14); }
 
     double building_distance(const building &other) const
     {
@@ -65,13 +58,21 @@ public:
 
     building &operator=(const building &other)
     {
-        if (this != &other)
+        if (this == &other)
         {
-            x = other.x;
-            y = other.y;
-            building_kind = other.building_kind;
+            return *this;
         }
+        x = other.x;
+        y = other.y;
+        building_kind = other.building_kind;
         return *this;
+    }
+
+    bool operator==(const building &other) const
+    {
+       return x == other.x &&
+            y == other.y &&
+            building_kind == other.building_kind;
     }
 
     building(const building &other)
@@ -81,45 +82,16 @@ public:
         building_kind = other.building_kind;
     }
 
-    int get_x() const
-    {
-        return x;
-    }
+    int get_x() const { return x; }
+    int get_y() const { return y; }
+    string get_building_id() const { return building_id; }
+    BUILDING_KIND get_building_kind() const { return building_kind; }
 
-    int get_y() const
-    {
-        return y;
-    }
+    void set_x(int _x) { x = _x; }
+    void set_y(int _y) { y = _y; }
+    void set_building_kind(int kind) { building_kind = static_cast<BUILDING_KIND>(kind); }
+    void set_building_id(string ID) { building_id = ID; }
 
-    BUILDING_KIND get_building_kind() const
-    {
-        return building_kind;
-    }
-
-    string get_building_id() const
-    {
-        return building_id;
-    }
-
-    void set_x(int _x)
-    {
-        x = _x;
-    }
-
-    void set_y(int _y)
-    {
-        y = _y;
-    }
-
-    void set_building_kind(BUILDING_KIND kind)
-    {
-        building_kind = kind;
-    }
-
-    void set_building_id(string ID)
-    {
-        building_id = ID;
-    }
     friend class road;
     friend class graph;
 };
@@ -127,13 +99,16 @@ public:
 class road
 {
 private:
-    building *start;
-    building *end;
     double crowding;
     double road_distance;
     string road_id;
 
 public:
+    building *start;
+    building *end;
+
+    road() {}
+
     road(building *s, building *e) : start(s), end(e)
     {
         road_distance = start->building_distance(*end);
@@ -175,9 +150,37 @@ public:
         cout << road_id << " Distance: " << road_distance << endl;
     }
 
-    string get_road_id() const
+    double get_road_crowding() const { return crowding; }
+    double get_road_distance() const { return road_distance; }
+    string get_road_id() const { return road_id; }
+
+    void set_road_start(building* _start) {start = _start; }
+    void set_road_end(building* _end) {end = _end; }
+    void set_road_crowding(double _crowding) { crowding = _crowding; }
+    void set_road_distance(double _distance) { road_distance = _distance; }
+    void set_road_id(string _id) { road_id = _id; }
+
+    road &operator=(const road &other)
     {
-        return road_id;
+        if (this == &other)
+        {
+            return *this;
+        }
+        start = other.start;
+        end = other.end;
+        crowding = other.crowding;
+        road_distance = other.road_distance;
+        road_id = other.road_id;
+        return *this;
+    }
+
+    road(const road &other)
+    {
+        start = other.start;
+        end = other.end;
+        crowding = other.crowding;
+        road_distance = other.road_distance;
+        road_id = other.road_id;
     }
 
     friend class graph;
@@ -185,7 +188,15 @@ public:
 
 class graph
 {
+private:
+    string graph_id;
+
 public:
+    vector<building> buildings;
+    vector<road> roads;
+
+    graph() {}
+
     graph(int building_num, int road_num)
     {
         for (int i = 0; i < building_num; i++)
@@ -258,40 +269,36 @@ public:
             r.print();
         }
     }
+
+    graph &operator=(const graph &other)
+    {
+        if (this == &other)
+        {
+            return *this;
+        }
+        buildings = other.buildings;
+        roads = other.roads;
+
+        return *this;
+    }
+
+    bool search_road(string target)
+    {
+        for (int i = 0; i < roads.size(); i++)
+        {
+            if (roads[i].get_road_id() == target)
+                return true;
+        }
+        return false;
+    }
+
+    bool search_building(string target)
+    {
+        for (int i = 0; i < buildings.size(); i++)
+        {
+            if (buildings[i].get_building_id() == target)
+                return true;
+        }
+        return false;
+    }
 };
-
-bool search_road(vector<road> roads, string target)
-{
-    for (int i = 0; i < roads.size(); i++)
-    {
-        if (roads[i].get_road_id() == target)
-            return true;
-    }
-    return false;
-}
-
-bool search_building(vector<building> buildings, string target)
-{
-    for (int i = 0; i < buildings.size(); i++)
-    {
-        if (buildings[i].get_building_id() == target)
-            return true;
-    }
-    return false;
-}
-
-graph initiate_graph()
-{
-    int building_count;
-    int edge_count;
-
-    cout << "please enter the buildings number" << endl;
-    cin >> building_count;
-
-    cout << "please enter the roads number" << endl;
-    cin >> edge_count;
-
-    graph g(building_count, edge_count);
-
-    return g;
-}

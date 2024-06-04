@@ -1,20 +1,22 @@
 #include "graph.h"
-#include "mysql.h"
 #include "diary.h"
+// #include "mysql.cpp"
 
 int main()
 {
     srand(static_cast<unsigned>(time(nullptr)));
-    int usr_choic;
+    vector<building> buildings;
+    vector<road> roads;
 
-    cout << "please select a part:" << endl;
+    int building_num;
+    int road_num;
 
-    cout << "1. travel part" << endl;
-    cout << "2. diary part" << endl; 
-    cin >> usr_choic;
+    cin >> building_num;
+    cin >> road_num;
 
-    graph g = initiate_graph();
-
+    graph g(building_num,road_num);
     g.print();
+
+
     return 0;
 }
