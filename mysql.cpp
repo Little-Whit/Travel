@@ -11,11 +11,6 @@
 #include <sstream>
 #include "graph.h"
 
-const char *db_host = "tcp://127.0.0.1:3306";
-const char *db_user = "admin";
-const char *db_password = "admin123";
-const char *db_name = "Pokemons";
-
 /// @brief 对数据库中的数据进行设置
 /// @param table_name 数据库中表的名称
 /// @param column_name 表中列的名称
@@ -303,9 +298,10 @@ graph get_graph_from_database(const string &graph_name)
             building *end = nullptr;
             for (auto &b : g.buildings)
             {
-                if (b.get_building_id() == start_id)
+                if (start_id == b.get_building_id())
                     start = &b;
-                else if (b.get_building_id() == end_id)
+                    
+                if (end_id == b.get_building_id())
                     end = &b;
             }
 

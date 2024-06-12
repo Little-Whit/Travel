@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <climits>
 #include <stdexcept>
+#include <string_view>
 using namespace std;
 
 #define MAX_PX 1500
@@ -137,7 +138,8 @@ public:
     {
         x = other.x;
         y = other.y;
-        building_name = other.building_name;
+        string_view building_name_view(other.building_name);
+        building_name = building_name_view;
         building_id = other.building_id;
         building_kind = other.building_kind;
     }
@@ -206,10 +208,9 @@ public:
 
     void print() const
     {
-        // cout << "Road from (" << start->x << ", " << start->y << ") to ("
-        //      << end->x << ", " << end->y << "), Distance: " << road_distance << endl;
-
-        cout << road_id << " Distance: " << road_distance << endl;
+        // cout << road_id << " Distance: " << road_distance << endl;
+        start->print();
+        end->print();
     }
 
     double get_road_crowding() const { return crowding; }
@@ -517,7 +518,7 @@ public:
                 adjecentMatrix[j + 1][i + 1] = 1;
             }
         }
-        else 
+        else
         {
             cerr << "roads is empty" << endl;
         }

@@ -39,7 +39,8 @@ void home_page()
 void attraction_pattern()
 {
     graph g;
-    for (;;)
+    bool exitLoop = false;
+    while(!exitLoop)
     {
         cout << "1.Sort By Heat" << endl;
         cout << "2.Sort By Score" << endl;
@@ -71,12 +72,11 @@ void attraction_pattern()
             if (g.get_graph_id() == 0)
             {
                 cout << "This graph doesn't exit" << endl;
-                return;
+                break;
             }
             else
             {
-                g.print_road();
-                g.print_building();
+                exitLoop = true;
                 break;
             }
         }
@@ -123,7 +123,7 @@ void attraction_pattern()
 
             for (int i = 0; i < num_midpoints; ++i)
             {
-                cout << "Please Enter the Midpoint ID of" << i + 1;
+                cout << "Please Enter the Midpoint ID of: " << i + 1;
                 cin >> mid_ids[i];
             }
 
@@ -210,7 +210,7 @@ void diary_pattern()
     createFileIfNotExists(filename);
 
     DiaryManager manager;
-    // manager.loadDiaries(filename); // Load diaries by default
+    manager.loadDiaries(filename); // Load diaries by default
 
     ifstream inFile(filename, ios::binary);
     size_t diaryCount;
