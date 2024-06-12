@@ -1,468 +1,388 @@
 #include <iostream>
-#include <string>
-#include <vector>
 #include <fstream>
-#include <algorithm>
-#include <sstream>
+#include <unordered_map>
+#include <vector>
+#include <queue>
 #include <functional>
+#include <algorithm>
+
 using namespace std;
-/* 构建next数组 */ 
-vector<int> buildNext(const string &pattern)
-{
-    int m = pattern.length();
-    vector<int> next(m, 0);
-    int i = 1, j = 0;
-    while (i < m)
-    {
-        if (pattern[i] == pattern[j])
-        {
-            next[i] = j + 1;
-            i++;
-            j++;
-        }
-        else
-        {
-            if (j > 0)
-            {
-                j = next[j - 1];
-            }
-            else
-            {
-                next[i] = 0;
-                i++;
-            }
-        }
-    }
-    return next;
-}
 
-/* 使用KMP算法进行全文检索 */
-vector<int> kmpSearch(const string &text, const string &pattern)
+struct Diary
 {
-    vector<int> result;
-    int n = text.length();
-    int m = pattern.length();
-    vector<int> next = buildNext(pattern);
-    int i = 0, j = 0;
-    while (i < n)
-    {
-        if (text[i] == pattern[j])
-        {
-            i++;
-            j++;
-            if (j == m)
-            {
-                result.push_back(i - j);
-                j = next[j - 1];
-            }
-        }
-        else
-        {
-            if (j > 0)
-            {
-                j = next[j - 1];
-            }
-            else
-            {
-                i++;
-            }
-        }
-    }
-    return result;
-}
-
-class Diary
-{
-private:
-    string name;
-    string fileAddress;
-    string destination;
+    string title;
     string content;
-    int score;
-    int viewCount;
+    string destination;
+    int views;
+    vector<int> ratings;
 
-public:
-    Diary(const string &name, const string &fileAddress, const string &destination, const string &content)
-        : name(name), fileAddress(fileAddress), destination(destination), content(content), score(0), viewCount(0) {}
-
-    string getName() const
-    {
-        return name;
-    }
-
-    string getFileAddress() const
-    {
-        return fileAddress;
-    }
-
-    string getDestination() const
-    {
-        return destination;
-    }
-
-    string getContent() const
-    {
-        return content;
-    }
-
-    int getScore() const
-    {
-        return score;
-    }
-
-    int getViewCount() const
-    {
-        return viewCount;
-    }
-
-    void setScore(int newScore)
-    {
-        score = newScore;
-    }
-
-    void increaseViewCount()
-    {
-        viewCount++;
-    }
-
-    void writeContentToFile()
-    {
-        ofstream file(fileAddress);
-        if (static_cast<bool>(file.is_open()))
-        {
-            file << content;
-            file.close();
-        }
-        else
-        {
-            cout << "Unable to write content to file: " << fileAddress << endl;
-        }
-    }
-
-    void readContentFromFile()
-    {
-        ifstream file(fileAddress);
-        if (static_cast<bool>(file.is_open()))
-        {
-            string line;
-            while (getline(file, line))
-            {
-                content += line + "\n";
-            }
-            file.close();
-        }
-        else
-        {
-            cout << "Unable to read content from file: " << fileAddress << endl;
-        }
-    }
+    Diary(string t, string c, string d) : title(t), content(c), destination(d), views(0) {}
 };
 
 class DiaryManager
 {
-private:
     vector<Diary> diaries;
 
+    void buildHuffmanTree(string text, unordered_map<char, string> &huffmanCode)
+    {
+        unordered_map<char, int> freq;
+        for (char ch : text)
+        {
+            freq[ch]++;
+        }
+
+        struct Node
+        {
+            char ch;
+            int freq;
+            Node *left, *right;
+            Node(char ch, int freq, Node *left = nullptr, Node *right = nullptr)
+            {
+                this->ch = ch;
+                this->freq = freq;
+                this->left = left;
+                this->right = right;
+            }
+        };
+
+        struct compare
+        {
+            bool operator()(Node *left, Node *right)
+            {
+                return left->freq > right->freq;
+            }
+        };
+
+        priority_queue<Node *, vector<Node *>, compare> pq;
+        for (auto pair : freq)
+        {
+            pq.push(new Node(pair.first, pair.second));
+        }
+
+        while (pq.size() != 1)
+        {
+            Node *left = pq.top();
+            pq.pop();
+            Node *right = pq.top();
+            pq.pop();
+            int sum = left->freq + right->freq;
+            pq.push(new Node('\0', sum, left, right));
+        }
+
+        Node *root = pq.top();
+
+        std::function<void(Node *, string)> encode = [&](Node *node, string str)
+        {
+            if (node == nullptr)
+                return;
+            if (!node->left && !node->right)
+            {
+                huffmanCode[node->ch] = str;
+            }
+            encode(node->left, str + "0");
+            encode(node->right, str + "1");
+        };
+
+        encode(root, "");
+    }
+
+    string encodeText(string text, unordered_map<char, string> &huffmanCode)
+    {
+        string encodedText = "";
+        for (char ch : text)
+        {
+            encodedText += huffmanCode[ch];
+        }
+        return encodedText;
+    }
+
+    string decodeText(string encodedText, unordered_map<string, char> &reverseHuffmanCode)
+    {
+        string decodedText = "";
+        string currentCode = "";
+        for (char bit : encodedText)
+        {
+            currentCode += bit;
+            if (reverseHuffmanCode.find(currentCode) != reverseHuffmanCode.end())
+            {
+                decodedText += reverseHuffmanCode[currentCode];
+                currentCode = "";
+            }
+        }
+        return decodedText;
+    }
+
 public:
-    string fileAddress;
-    void createDiary(const string &name, const string &destination, const string &content)
+    void addDiary()
     {
-        string fileAddress = name + ".txt";
-        Diary diary(name, fileAddress, destination, content);
-        diary.writeContentToFile();
-        diaries.push_back(diary);
-    }
+        string input, title, content, destination;
 
-    void evaluateDiary(const string &name, int newScore)
-    {
-        for (Diary &diary : diaries)
+        cout << "Enter diary title : ";
+        getline(cin, input);
+        if (!input.empty())
         {
-            if (diary.getName() == name)
-            {
-                diary.setScore((diary.getScore() + newScore) / 2);
+            title += input + "\n";
+        }
+        if (!title.empty())
+        {
+            title = title.substr(0, title.size() - 1); // Remove the last newline character
+        }
+        if (title.empty())
+            return;
+
+        cout << "Enter diary content (type 'exit' when done): ";
+        while (true)
+        {
+            getline(cin, input);
+            if (input == "exit")
                 break;
+            if (!input.empty())
+            {
+                content += input + "\n";
             }
         }
-        sortDiaries();
-    }
-
-    void increaseViewCount(const string &name)
-    {
-        for (Diary &diary : diaries)
+        if (!content.empty())
         {
-            if (diary.getName() == name)
-            {
-                diary.increaseViewCount();
-                break;
-            }
+            content = content.substr(0, content.size() - 1); // Remove the last newline character
         }
-        sortDiaries();
-    }
+        if (content.empty())
+            return;
 
-    void sortDiaries()
-    {
-        sort(diaries.begin(), diaries.end(), [](const Diary &d1, const Diary &d2)
-             { return d1.getScore() > d2.getScore(); });
-    }
+        cout << "Enter diary destination : ";
 
-    void searchDiaries(const string &pattern)
-    {
-        for (const Diary &diary : diaries)
+        getline(cin, input);
+
+        if (!input.empty())
         {
-            vector<int> matches = kmpSearch(diary.getContent(), pattern);
-            if (!matches.empty())
+            destination += input + "\n";
+        }
+        if (!destination.empty())
+        {
+            destination = destination.substr(0, destination.size() - 1); // Remove the last newline character
+        }
+        if (destination.empty())
+            return;
+
+        diaries.push_back(Diary(title, content, destination));
+    }
+
+    void saveDiaries(string filename)
+    {
+        ofstream outFile(filename, ios::binary);
+        if (outFile.is_open())
+        {
+            size_t diaryCount = diaries.size();
+            outFile.write(reinterpret_cast<const char *>(&diaryCount), sizeof(diaryCount));
+
+            for (const auto &diary : diaries)
             {
-                cout << "Pattern found in diary: " << diary.getName() << endl;
-                for (int matchIndex : matches)
+                size_t titleSize = diary.title.size();
+                size_t destinationSize = diary.destination.size();
+
+                outFile.write(reinterpret_cast<const char *>(&titleSize), sizeof(titleSize));
+                outFile.write(diary.title.c_str(), titleSize);
+
+                outFile.write(reinterpret_cast<const char *>(&destinationSize), sizeof(destinationSize));
+                outFile.write(diary.destination.c_str(), destinationSize);
+
+                unordered_map<char, string> huffmanCode;
+                buildHuffmanTree(diary.content, huffmanCode);
+                string encodedContent = encodeText(diary.content, huffmanCode);
+
+                size_t mapSize = huffmanCode.size();
+                outFile.write(reinterpret_cast<const char *>(&mapSize), sizeof(mapSize));
+
+                for (auto pair : huffmanCode)
                 {
-                    cout << "Match found at index: " << matchIndex << endl;
+                    outFile.write(reinterpret_cast<const char *>(&pair.first), sizeof(pair.first));
+                    size_t codeSize = pair.second.size();
+                    outFile.write(reinterpret_cast<const char *>(&codeSize), sizeof(codeSize));
+                    outFile.write(pair.second.c_str(), codeSize);
+                }
+
+                size_t encodedSize = encodedContent.size();
+                outFile.write(reinterpret_cast<const char *>(&encodedSize), sizeof(encodedSize));
+                outFile.write(encodedContent.c_str(), encodedSize);
+
+                outFile.write(reinterpret_cast<const char *>(&diary.views), sizeof(diary.views));
+
+                size_t ratingsSize = diary.ratings.size();
+                outFile.write(reinterpret_cast<const char *>(&ratingsSize), sizeof(ratingsSize));
+                for (int rating : diary.ratings)
+                {
+                    outFile.write(reinterpret_cast<const char *>(&rating), sizeof(rating));
                 }
             }
-        }
-    }
 
-    void rankByTotalScoreAndViews()
-    {
-        sort(diaries.begin(), diaries.end(), [](const Diary &d1, const Diary &d2)
-             {
-            int totalScore1 = d1.getScore() + d1.getViewCount();
-            int totalScore2 = d2.getScore() + d2.getViewCount();
-            return totalScore1 > totalScore2; });
-
-        cout << "Ranking by total score and views:" << endl;
-        for (int i = 0; i < min(10, static_cast<int>(diaries.size())); i++)
-        {
-            const Diary &diary = diaries[i];
-            int totalScore = diary.getScore() + diary.getViewCount();
-            cout << i + 1 << ". " << diary.getName() << " - Total Score: " << totalScore << endl;
-        }
-    }
-
-    void rankByAddressScoreAndViews()
-    {
-        sort(diaries.begin(), diaries.end(), [](const Diary &d1, const Diary &d2)
-             {
-            int addressScore1 = d1.getDestination().length() + d1.getScore() + d1.getViewCount();
-            int addressScore2 = d2.getDestination().length() + d2.getScore() + d2.getViewCount();
-            return addressScore1 > addressScore2; });
-
-        cout << "Ranking by address score and views:" << endl;
-        for (int i = 0; i < min(10, static_cast<int>(diaries.size())); i++)
-        {
-            const Diary &diary = diaries[i];
-            int addressScore = diary.getDestination().length() + diary.getScore() + diary.getViewCount();
-            cout << i + 1 << ". " << diary.getName() << " - Address Score: " << addressScore << endl;
-        }
-    }
-
-    void rankByAddressScoreAndViews(const string &address)
-    {
-        vector<Diary> diariesWithAddress;
-        for (const Diary &diary : diaries)
-        {
-            if (diary.getDestination() == address)
-            {
-                diariesWithAddress.push_back(diary);
-            }
-        }
-
-        sort(diariesWithAddress.begin(), diariesWithAddress.end(), [](const Diary &d1, const Diary &d2)
-             {
-            int addressScore1 = d1.getScore() + d1.getViewCount();
-            int addressScore2 = d2.getScore() + d2.getViewCount();
-            return addressScore1 > addressScore2; });
-
-        cout << "Ranking by address score and views for address " << address << ":" << endl;
-        for (int i = 0; i < min(10, static_cast<int>(diariesWithAddress.size())); i++)
-        {
-            const Diary &diary = diariesWithAddress[i];
-            int addressScore = diary.getScore() + diary.getViewCount();
-            cout << i + 1 << ". " << diary.getName() << " - Address Score: " << addressScore << endl;
-        }
-    }
-
-    string searchDiaryByName(const string &name)
-    {
-        for (const Diary &diary : diaries)
-        {
-            if (diary.getName() == name)
-            {
-                return diary.getFileAddress();
-            }
-        }
-        return ""; // 如果找不到匹配的日记，返回空字符串
-    }
-    void saveDiariesToFile()
-    {
-        ofstream file(fileAddress);
-        if (file.is_open())
-        {
-            for (const Diary &diary : diaries)
-            {
-                file << diary.getName() << "," << diary.getFileAddress() << "," << diary.getDestination() << "," << diary.getScore() << "," << diary.getViewCount() << "\n";
-            }
-            file.close();
-            cout << "Diaries saved to file: " << fileAddress << endl;
+            outFile.close();
         }
         else
         {
-            cout << "Unable to save diaries to file: " << fileAddress << endl;
+            cerr << "Unable to open file for writing." << endl;
         }
     }
 
-    void loadDiariesFromFile()
+    void loadDiaries(string filename)
     {
-        ifstream file(fileAddress);
-        if (file.is_open())
+        ifstream inFile(filename, ios::binary);
+        if (!inFile.is_open())
         {
-            diaries.clear(); // 清空当前的日记数组
+            cerr << "Unable to open file for reading." << endl;
+            return;
+        }
 
-            string line;
-            while (getline(file, line))
+        size_t diaryCount;
+        inFile.read(reinterpret_cast<char *>(&diaryCount), sizeof(diaryCount));
+
+        for (size_t i = 0; i < diaryCount; ++i)
+        {
+            size_t titleSize;
+            inFile.read(reinterpret_cast<char *>(&titleSize), sizeof(titleSize));
+            string title(titleSize, ' ');
+            inFile.read(&title[0], titleSize);
+
+            size_t destinationSize;
+            inFile.read(reinterpret_cast<char *>(&destinationSize), sizeof(destinationSize));
+            string destination(destinationSize, ' ');
+            inFile.read(&destination[0], destinationSize);
+
+            size_t mapSize;
+            inFile.read(reinterpret_cast<char *>(&mapSize), sizeof(mapSize));
+
+            unordered_map<string, char> reverseHuffmanCode;
+            char ch;
+            for (size_t j = 0; j < mapSize; ++j)
             {
-                stringstream ss(line); // 初始化stringstream
-                string name, fileAddress, destination, scoreStr, viewCountStr;
-                getline(ss, name, ',');
-                getline(ss, fileAddress, ',');
-                getline(ss, destination, ',');
-                getline(ss, scoreStr, ',');
-                getline(ss, viewCountStr, ',');
-
-                int score = stoi(scoreStr);
-                int viewCount = stoi(viewCountStr);
-
-                Diary diary(name, fileAddress, destination, "");
-                diary.setScore(score);
-                diary.increaseViewCount();
-
-                diaries.push_back(diary);
+                inFile.read(reinterpret_cast<char *>(&ch), sizeof(ch));
+                size_t codeSize;
+                inFile.read(reinterpret_cast<char *>(&codeSize), sizeof(codeSize));
+                string code(codeSize, ' ');
+                inFile.read(&code[0], codeSize);
+                reverseHuffmanCode[code] = ch;
             }
 
-            file.close();
-            cout << "Diaries loaded from file: " << fileAddress << endl;
+            size_t encodedSize;
+            inFile.read(reinterpret_cast<char *>(&encodedSize), sizeof(encodedSize));
+
+            string encodedText(encodedSize, ' ');
+            inFile.read(&encodedText[0], encodedSize);
+
+            string content = decodeText(encodedText, reverseHuffmanCode);
+
+            int views;
+            inFile.read(reinterpret_cast<char *>(&views), sizeof(views));
+
+            size_t ratingsSize;
+            inFile.read(reinterpret_cast<char *>(&ratingsSize), sizeof(ratingsSize));
+            vector<int> ratings(ratingsSize);
+            for (size_t j = 0; j < ratingsSize; ++j)
+            {
+                inFile.read(reinterpret_cast<char *>(&ratings[j]), sizeof(ratings[j]));
+            }
+
+            diaries.push_back(Diary(title, content, destination));
+            diaries.back().views = views;
+            diaries.back().ratings = ratings;
         }
-        else
+
+        inFile.close();
+    }
+
+    void displayDiaryCount()
+    {
+        cout << "Currently there are " << diaries.size() << " travel diaries." << endl;
+    }
+
+    void displayAllDiaries()
+    {
+        for (const auto &diary : diaries)
         {
-            cout << "Unable to load diaries from file: " << fileAddress << endl;
+            cout << "Title: " << diary.title << ", Destination: " << diary.destination << ", Views: " << diary.views << endl;
         }
     }
-    void saveDiariesOnExit(DiaryManager &diaryManager)
+
+    void viewDiary(string title)
     {
-        diaryManager.saveDiariesToFile();
+        for (auto &diary : diaries)
+        {
+            if (diary.title == title)
+            {
+                diary.views++;
+                cout << "Content: " << diary.content << endl;
+                return;
+            }
+        }
+        cout << "Diary with title " << title << " not found." << endl;
+    }
+
+    void rateDiary(string title, int rating)
+    {
+        for (auto &diary : diaries)
+        {
+            if (diary.title == title)
+            {
+                diary.ratings.push_back(rating);
+                return;
+            }
+        }
+        cout << "Diary with title " << title << " not found." << endl;
+    }
+
+    double getAverageRating(const Diary &diary)
+    {
+        if (diary.ratings.empty())
+            return 0;
+        double sum = 0;
+        for (int rating : diary.ratings)
+        {
+            sum += rating;
+        }
+        return sum / diary.ratings.size();
+    }
+
+    void recommendDiaries()
+    {
+        sort(diaries.begin(), diaries.end(), [this](const Diary &a, const Diary &b)
+             { return a.views + getAverageRating(a) > b.views + getAverageRating(b); });
+
+        for (const auto &diary : diaries)
+        {
+            cout << "Title: " << diary.title << ", Destination: " << diary.destination << ", Views: " << diary.views << ", Average Rating: " << getAverageRating(diary) << endl;
+        }
+    }
+
+    void searchDiariesByDestination(string destination)
+    {
+        vector<Diary> filteredDiaries;
+        for (const auto &diary : diaries)
+        {
+            if (diary.destination == destination)
+            {
+                filteredDiaries.push_back(diary);
+            }
+        }
+
+        sort(filteredDiaries.begin(), filteredDiaries.end(), [this](const Diary &a, const Diary &b)
+             { return a.views + getAverageRating(a) > b.views + getAverageRating(b); });
+
+        for (const auto &diary : filteredDiaries)
+        {
+            cout << "Title: " << diary.title << ", Views: " << diary.views << ", Average Rating: " << getAverageRating(diary) << endl;
+        }
     }
 };
 
-void saveDiariesOnExit(DiaryManager &diaryManager)
+void createFileIfNotExists(const string &filename)
 {
-    diaryManager.saveDiariesToFile();
+    ifstream inFile(filename);
+    if (!inFile.good())
+    {
+        ofstream outFile(filename);
+        if (!outFile.is_open())
+        {
+            cerr << "Unable to create file: " << filename << endl;
+        }
+        outFile.close();
+    }
 }
 
-int main()
-{
-    DiaryManager diaryManager;
-    diaryManager.fileAddress = "diaries.txt"; // 设置文件地址
-
-    diaryManager.loadDiariesFromFile(); // 加载之前保存的日记信息
-
-    // 检查文件是否存在，如果不存在则创建文件
-    ifstream file(diaryManager.fileAddress);
-    if (!file.good())
-    {
-        ofstream createFile(diaryManager.fileAddress);
-        createFile.close();
-    }
-    file.close();
-
-    while (true)
-    {
-        cout << "1. Create Diary" << endl;
-        cout << "2. Evaluate Diary" << endl;
-        cout << "3. Search Diaries" << endl;
-        cout << "4. Rank Diaries by Total Score and Views" << endl;
-        cout << "5. Rank Diaries by Address Score and Views for Specific Address" << endl;
-        cout << "6.Enter diary name to search: " << endl;
-        cout << "7. Exit" << endl;
-
-        int choice;
-        cout << "Enter your choice: ";
-        cin >> choice;
-
-        if (choice == 1)
-        {
-            string name, destination, content;
-            cout << "Enter diary name: ";
-            cin >> name;
-            cout << "Enter destination: ";
-            cin >> destination;
-            cout << "Enter content: ";
-            cin.ignore();
-            getline(cin, content);
-
-            diaryManager.createDiary(name, destination, content);
-            cout << "Diary created successfully!" << endl;
-        }
-        else if (choice == 2)
-        {
-            string name;
-            int newScore;
-            cout << "Enter diary name: ";
-            cin >> name;
-            cout << "Enter new score: ";
-            cin >> newScore;
-
-            diaryManager.evaluateDiary(name, newScore);
-            cout << "Diary evaluated successfully!" << endl;
-        }
-        else if (choice == 3)
-        {
-            string pattern;
-            cout << "Enter search pattern: ";
-            cin.ignore();
-            getline(cin, pattern);
-
-            diaryManager.searchDiaries(pattern);
-        }
-        else if (choice == 4)
-        {
-            diaryManager.rankByTotalScoreAndViews();
-        }
-        else if (choice == 5)
-        {
-            string address;
-            cout << "Enter address: ";
-            cin >> address;
-
-            diaryManager.rankByAddressScoreAndViews(address);
-        }
-        else if (choice == 6)
-        {
-            string name;
-            cout << "Enter diary name to search: ";
-            cin >> name;
-            string fileAddress = diaryManager.searchDiaryByName(name);
-            if (!fileAddress.empty())
-            {
-                cout << "File address for diary " << name << ": " << fileAddress << endl;
-            }
-            else
-            {
-                cout << "Diary not found!" << endl;
-            }
-        }
-        else if (choice == 7)
-        {
-            break;
-        }
-        else
-        {
-            cin.clear();
-            cin.ignore();
-            cout << "Invalid choice! Please try again." << endl;
-        }
-    }
-
-    function<void()> saveDiariesFunc = [&diaryManager]()
-    { saveDiariesOnExit(diaryManager); };                                       // 使用function包装lambda函数
-    // atexit(reinterpret_cast<void (*)()>(saveDiariesFunc.target<void (*)()>())); // 使用reinterpret_cast进行函数指针类型转换
-    return 0;
-}
