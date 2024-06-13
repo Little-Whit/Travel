@@ -225,7 +225,6 @@ graph get_graph_from_database(const string &graph_name)
         }
         else
         {
-            cerr << "Graph with name '" << graph_name << "' not found in the database." << endl;
             return graph(); // Return an empty graph object
         }
 

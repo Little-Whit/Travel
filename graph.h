@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <vector>
+#include <fstream>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
@@ -9,10 +10,15 @@
 #include <queue>
 #include <array>
 #include <random>
+#include <cfloat>
 #include <algorithm>
 #include <climits>
 #include <stdexcept>
+#include <limits>
+#include <optional>
 #include <string_view>
+#include <unordered_map>
+#include <json/json.h>
 using namespace std;
 
 #define MAX_PX 1500
@@ -78,6 +84,35 @@ string building_kind_to_string(BUILDING_KIND kind)
     }
 }
 
+optional<BUILDING_KIND> string_to_building_kind(const string &kind_str)
+{
+    static const unordered_map<string, BUILDING_KIND> kind_map = {
+        {"Hotel", Hotel},
+        {"Canteen", Canteen},
+        {"Restaurant", Restaurant},
+        {"Drugstore", Drugstore},
+        {"Hospital", Hospital},
+        {"Toilet", Toilet},
+        {"Trainstation", Trainstation},
+        {"Busstation", Busstation},
+        {"Shop", Shop},
+        {"Workshop", Workshop},
+        {"Museum", Museum},
+        {"Landmark", Landmark},
+        {"Monument", Monument},
+        {"Garden", Garden}};
+
+    auto it = kind_map.find(kind_str);
+    if (it != kind_map.end())
+    {
+        return it->second;
+    }
+    else
+    {
+        return nullopt;
+    }
+}
+
 class building
 {
 private:
@@ -111,17 +146,23 @@ public:
         cout << endl;
     }
 
+    building(const building &other)
+        : x(other.x), y(other.y), building_name(other.building_name),
+          building_id(other.building_id), building_kind(other.building_kind) {}
+
     building &operator=(const building &other)
     {
         if (this == &other)
         {
             return *this;
         }
+
         x = other.x;
         y = other.y;
         building_name = other.building_name;
         building_id = other.building_id;
         building_kind = other.building_kind;
+
         return *this;
     }
 
@@ -132,16 +173,6 @@ public:
                building_kind == other.building_kind &&
                building_id == other.building_id &&
                building_name == other.building_name;
-    }
-
-    building(const building &other)
-    {
-        x = other.x;
-        y = other.y;
-        string_view building_name_view(other.building_name);
-        building_name = building_name_view;
-        building_id = other.building_id;
-        building_kind = other.building_kind;
     }
 
     int get_x() const { return x; }
@@ -171,39 +202,17 @@ public:
     building *start;
     building *end;
 
-    road() {}
+    road() : crowding(0.0), road_distance(0.0), start(nullptr), end(nullptr) {}
 
-    road(building *s, building *e) : start(s), end(e)
-    {
-        road_distance = start->building_distance(*end);
-        crowding = rand() % 10;
-    }
+    // Parameterized constructor
+    road(double crowding, double distance, const std::string &id, building *start, building *end)
+        : crowding(crowding), road_distance(distance), road_id(id), start(start), end(end) {}
+
+    road(building *start, building *end) : start(start), end(end) {}
 
     void initiate_road_id(int u)
     {
         road_id = "Road" + to_string(u);
-    }
-
-    bool intersect(const road &other) const
-    {
-        /* 快速排斥实验 */
-        if ((max(start->x, end->x) < min(other.start->x, other.end->x)) ||
-            (max(start->y, end->y) < min(other.start->y, other.end->y)) ||
-            (min(start->y, end->y) > max(other.start->y, other.end->y)) ||
-            (min(start->x, end->x) > max(other.start->x, other.end->x)))
-        {
-            return false;
-        }
-
-        /* 跨交实验 */
-        if ((((start->x - other.start->x) * (other.end->y - other.start->y) - (start->y - other.start->y) * (other.end->x - other.start->x)) *
-             ((end->x - other.start->x) * (other.end->y - other.start->y) - (end->y - other.start->y) * (other.end->x - other.start->x))) > 0 ||
-            (((other.start->x - start->x) * (end->y - start->y) - (other.start->y - start->y) * (end->x - start->x)) *
-             ((other.end->x - start->x) * (end->y - start->y) - (other.end->y - start->y) * (end->x - start->x))) > 0)
-        {
-            return false;
-        }
-        return true;
     }
 
     void print() const
@@ -227,23 +236,57 @@ public:
     {
         if (this == &other)
         {
-            return *this;
+            return *this; // Prevent self-assignment
         }
-        start = other.start;
-        end = other.end;
+
         crowding = other.crowding;
         road_distance = other.road_distance;
         road_id = other.road_id;
+
+        delete start;
+        delete end;
+
+        if (other.start)
+        {
+            start = new building(*other.start);
+        }
+        else
+        {
+            start = nullptr;
+        }
+
+        if (other.end)
+        {
+            end = new building(*other.end);
+        }
+        else
+        {
+            end = nullptr;
+        }
+
         return *this;
     }
 
     road(const road &other)
+        : crowding(other.crowding), road_distance(other.road_distance), road_id(other.road_id)
     {
-        start = other.start;
-        end = other.end;
-        crowding = other.crowding;
-        road_distance = other.road_distance;
-        road_id = other.road_id;
+        if (other.start)
+        {
+            start = new building(*other.start);
+        }
+        else
+        {
+            start = nullptr;
+        }
+
+        if (other.end)
+        {
+            end = new building(*other.end);
+        }
+        else
+        {
+            end = nullptr;
+        }
     }
 
     friend class graph;
@@ -261,7 +304,7 @@ private:
 
     Matrix adjecentMatrix = {0};
     Walk min_path_bfs;
-    int min_distance_bfs;
+    double min_distance_bfs;
 
 public:
     vector<building> buildings;
@@ -329,6 +372,43 @@ public:
         }
     }
 
+    void export_to_json(const string &filename)
+    {
+        Json::Value root;
+        root["graph_id"] = graph_id;
+        root["graph_name"] = graph_name;
+        root["graph_kind"] = graph_kind;
+        root["description"] = description;
+        root["graph_heat"] = graph_heat;
+        root["graph_score"] = graph_score;
+
+        for (const auto &building : buildings)
+        {
+            Json::Value b;
+            b["building_id"] = building.building_id;
+            b["x"] = building.x;
+            b["y"] = building.y;
+            b["building_kind"] = building.building_kind;
+            b["building_name"] = building.building_name;
+            root["buildings"].append(b);
+        }
+
+        for (const auto &road : roads)
+        {
+            Json::Value r;
+            r["road_id"] = road.road_id;
+            r["crowding"] = road.crowding;
+            r["road_distance"] = road.road_distance;
+            r["start"] = road.start->building_id;
+            r["end"] = road.end->building_id;
+            root["roads"].append(r);
+        }
+
+        ofstream file(filename);
+        file << root;
+        file.close();
+    }
+
     void print_graph() const
     {
         cout << "graph_heat: " << graph_heat << endl;
@@ -355,22 +435,13 @@ public:
         }
     }
 
-    void set_graph_heat(double HEAT) { graph_heat = HEAT; }
-    void set_graph_score(double SCORE) { graph_score = SCORE; }
-    void set_graph_name(string NAME) { graph_name = NAME; }
-    void set_graph_description(string DESCRIPTION) { description = DESCRIPTION; }
-    void set_graph_kind(string KIND) { graph_kind = KIND; }
-    void set_graph_id(int ID) { graph_id = ID; }
-
-    int get_graph_id() const { return graph_id; }
-
-    void print_closest_buildings(const string &building_name)
+    void get_closest_buildings(const string &building_id)
     {
         const building *target_building = nullptr;
 
         for (const auto &building : buildings)
         {
-            if (building.get_building_name() == building_name)
+            if (building.get_building_id() == building_id)
             {
                 target_building = &building;
                 break;
@@ -379,24 +450,24 @@ public:
 
         if (!target_building)
         {
-            cout << "Building not found: " << building_name << endl;
+            cout << "Building not found: " << building_id << endl;
             return;
         }
 
         vector<pair<double, string>> distances;
         for (const auto &building : buildings)
         {
-            if (building.get_building_name() != building_name)
+            if (building.get_building_id() != building_id)
             {
                 double dist = target_building->building_distance(building);
-                distances.emplace_back(dist, building.get_building_name());
+                distances.emplace_back(dist, building.get_building_id());
             }
         }
 
         sort(distances.begin(), distances.end(), [](const auto &lhs, const auto &rhs)
              { return lhs.first < rhs.first; });
 
-        cout << "The 10 closest buildings to " << building_name << " are:" << endl;
+        cout << "The 10 closest buildings to " << building_id << " are:" << endl;
         for (size_t i = 0; i < min(distances.size(), size_t(10)); ++i)
         {
             cout << distances[i].second << " at distance " << distances[i].first << endl;
@@ -404,31 +475,42 @@ public:
         cout << endl;
     }
 
-    void print_closest_buildings_by_kind(const string &location, BUILDING_KIND kind)
+    void get_closest_buildings_by_kinds(const string &building_id, const vector<BUILDING_KIND> &kinds)
     {
         vector<pair<double, string>> filteredBuildings;
-        building b;
+        const building *target_building = nullptr;
 
-        for (const auto &building : buildings)
+        // 找到目标建筑
+        for (const auto &b : buildings)
         {
-            if (building.get_building_name() == location)
+            if (b.get_building_id() == building_id)
             {
-                b = building;
+                target_building = &b;
                 break;
             }
         }
-        for (const auto &building : buildings)
+
+        if (!target_building)
         {
-            if (building.get_building_kind() == kind)
+            cout << "Building not found: " << building_id << endl;
+            return;
+        }
+
+        // 过滤和计算距离
+        for (const auto &b : buildings)
+        {
+            if (find(kinds.begin(), kinds.end(), b.get_building_kind()) != kinds.end())
             {
-                double dist = b.building_distance(building);
-                filteredBuildings.emplace_back(dist, building.get_building_name());
+                double dist = target_building->building_distance(b);
+                filteredBuildings.emplace_back(dist, b.get_building_id());
             }
         }
 
+        // 按距离排序
         sort(filteredBuildings.begin(), filteredBuildings.end());
 
-        cout << "Buildings of kind " << kind << " from location (" << b.get_x() << ", " << b.get_y() << ") are:" << endl;
+        // 输出结果
+        cout << "Buildings of specified kinds from building_id (" << target_building->get_x() << ", " << target_building->get_y() << ") are:" << endl;
         for (const auto &pair : filteredBuildings)
         {
             cout << pair.second << " at distance " << pair.first << endl;
@@ -526,9 +608,9 @@ public:
     }
 
     // 单次BFS查找最短路径
-    void bfs(int s, int e, Walk &path, int &distance)
+    void bfs_distance(int s, int e, Walk &path, double &distance)
     {
-        vector<int> dist(MAX_ROWS, INT_MAX);
+        vector<double> dist(MAX_ROWS, DBL_MAX);
         vector<int> prev(MAX_ROWS, -1);
         queue<int> q;
 
@@ -542,9 +624,9 @@ public:
 
             for (int v = 1; v <= MAX_NODE_CODE; ++v)
             {
-                if (adjecentMatrix[u][v] != 0 && dist[v] == INT_MAX)
+                if (adjecentMatrix[u][v] != 0 && dist[v] == DBL_MAX)
                 {
-                    dist[v] = dist[u] + 1;
+                    dist[v] = dist[u] + buildings[u].building_distance(buildings[v]);
                     prev[v] = u;
                     q.push(v);
                 }
@@ -572,16 +654,16 @@ public:
         indices.push_back(idToIndex(&end));
 
         min_path_bfs.clear();
-        min_distance_bfs = 0;
+        min_distance_bfs = 0.0;
 
         for (size_t i = 0; i < indices.size() - 1; ++i)
         {
             Walk segment_path;
-            int segment_distance;
-            bfs(indices[i], indices[i + 1], segment_path, segment_distance);
-            if (segment_distance == INT_MAX)
+            double segment_distance;
+            bfs_distance(indices[i], indices[i + 1], segment_path, segment_distance);
+            if (segment_distance == DBL_MAX)
             {
-                min_distance_bfs = INT_MAX;
+                min_distance_bfs = DBL_MAX;
                 return;
             }
             if (i > 0)
@@ -598,10 +680,46 @@ public:
     {
         int s = idToIndex(&start);
         int e = idToIndex(&end);
-        bfs(s, e, min_path_bfs, min_distance_bfs);
+        double distance;
+        bfs_distance(s, e, min_path_bfs, distance);
+        min_distance_bfs = distance;
     }
 
-    int printPath(Walk &path, int distance)
+    void bfs_time(int s, int e, Walk &path, double &time)
+    {
+        vector<double> dist(MAX_ROWS, DBL_MAX);
+        vector<int> prev(MAX_ROWS, -1);
+        queue<int> q;
+
+        dist[s] = 0;
+        q.push(s);
+
+        while (!q.empty())
+        {
+            int u = q.front();
+            q.pop();
+
+            for (int v = 1; v <= MAX_NODE_CODE; ++v)
+            {
+                if (adjecentMatrix[u][v] != 0 && dist[v] == DBL_MAX)
+                {
+                    dist[v] = dist[u] + buildings[u].building_distance(buildings[v]);
+                    prev[v] = u;
+                    q.push(v);
+                }
+            }
+        }
+
+        path.clear();
+        for (int at = e; at != -1; at = prev[at])
+        {
+            string b = intToId(at);
+            path.insert(path.begin(), b);
+        }
+        time = dist[e];
+    }
+
+    int printPath(Walk &path, double distance)
     {
         for (auto i : path)
             cout << i << '\t';
@@ -614,4 +732,13 @@ public:
     {
         return printPath(min_path_bfs, min_distance_bfs);
     }
+
+    void set_graph_heat(double HEAT) { graph_heat = HEAT; }
+    void set_graph_score(double SCORE) { graph_score = SCORE; }
+    void set_graph_name(string NAME) { graph_name = NAME; }
+    void set_graph_description(string DESCRIPTION) { description = DESCRIPTION; }
+    void set_graph_kind(string KIND) { graph_kind = KIND; }
+    void set_graph_id(int ID) { graph_id = ID; }
+
+    int get_graph_id() const { return graph_id; }
 };

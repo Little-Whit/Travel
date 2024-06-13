@@ -40,7 +40,7 @@ void attraction_pattern()
 {
     graph g;
     bool exitLoop = false;
-    while(!exitLoop)
+    while (!exitLoop)
     {
         cout << "1.Sort By Heat" << endl;
         cout << "2.Sort By Score" << endl;
@@ -69,6 +69,8 @@ void attraction_pattern()
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
             getline(cin, target);
             g = get_graph_from_database(target);
+            g.export_to_json("graph_data.json");
+            system("python3 draw_graph.py graph_data.json &");
             if (g.get_graph_id() == 0)
             {
                 cout << "This graph doesn't exit" << endl;
@@ -98,7 +100,7 @@ void attraction_pattern()
         cout << "1.Route Plan By Length" << endl;
         cout << "2.Display All Buildings" << endl;
         cout << "3.Display Surround Buildings" << endl;
-        cout << "4.Display Surround Buildings By Specific Kind" << endl;
+        cout << "4.Display Specific Buildings" << endl;
         cout << "5.Exit" << endl;
         cin >> attraction_user_choice;
 
@@ -108,10 +110,15 @@ void attraction_pattern()
         {
             g.formMatrix();
             int start_id, end_id;
-            int num_midpoints;
+            int num_midpoints, kind;
+            int useCrowding;
             vector<int> mid_ids;
             string location;
-            int kind;
+
+            cout << "1.Shortest Time strategy " << endl; 
+            cout << "2.Shortest Distance strategy " << endl; 
+            cout << "Please Choose Strategy: ";
+            cin >> useCrowding;
 
             cout << "Please Enter Start ID: ";
             cin >> start_id;
@@ -123,7 +130,7 @@ void attraction_pattern()
 
             for (int i = 0; i < num_midpoints; ++i)
             {
-                cout << "Please Enter the Midpoint ID of: " << i + 1;
+                cout << "Please Enter the Midpoint ID of " << i + 1 << ": ";
                 cin >> mid_ids[i];
             }
 
@@ -141,58 +148,94 @@ void attraction_pattern()
             g.printShortestPathBFS();
             break;
         }
+
         case 2:
             g.print_building();
             break;
+
         case 3:
         {
-            string location;
-            cin.clear(); // 清除错误标志
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            int location;
             cout << "Please Enter Your Location:" << endl;
-            getline(cin, location);
-            g.print_closest_buildings(location);
+            cin >> location;
+            if (cin.fail())
+            {
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                cout << "Invalid Input" << endl;
+            }
+            else
+            {
+                g.get_closest_buildings(g.buildings[location].get_building_id());
+            }
             break;
         }
+
         case 4:
         {
-            string location;
-            int kind;
+            int location;
+            string kind;
             BUILDING_KIND building_kind;
+            vector<BUILDING_KIND> kinds;
+            int filter_choice = 0;
+            bool exitLoop = false;
 
             // 读取location
-            cin.clear(); // 清除错误标志
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
             cout << "Please Enter Your Location:" << endl;
-            getline(cin, location);
-
-            // 读取kind
-            while (true)
+            cin >> location;
+            if (cin.fail())
             {
-                cout << "Please Enter Building Kind:" << endl;
-                cin.clear(); // 清除错误标志
+                cin.clear();
                 cin.ignore(numeric_limits<streamsize>::max(), '\n');
-                cout << "Please Repeat Building Kind:" << endl;
-                cin >> kind;
-
-                if (cin.fail())
-                {
-                    cout << "Invalid Input";
-                    cin.clear();                                         // 清除错误标志
-                    cin.ignore(numeric_limits<streamsize>::max(), '\n'); // 忽略输入流中的无效数据
-                }
-                else
-                {
-                    break; // 输入有效，退出循环
-                }
+                cout << "Invalid Input" << endl;
             }
+            else
+            {
+                // 读取kind
+                while (!exitLoop)
+                {
+                    cout << "1.Input The Kind" << endl;
+                    cout << "2.Quit" << endl;
+                    cin >> filter_choice;
+                    switch (filter_choice)
+                    {
+                    case 1:
+                    {
+                        cout << "Please Enter Building Kind:" << endl;
+                        cin >> kind;
+                        optional _kind = string_to_building_kind(kind);
+                        if (_kind.has_value())
+                        {
+                            kinds.push_back(_kind.value());
+                        }
+                        else
+                        {
+                            cout << "Invalid building kind: " << kind << endl;
+                            // 其他处理逻辑，例如打印错误信息或执行其他操作
+                        }
+                        break;
+                    }
+                    case 2:
+                        exitLoop = true;
+                        break;
 
-            building_kind = static_cast<BUILDING_KIND>(kind);
-            g.print_closest_buildings_by_kind(location, building_kind);
-            break; // 别忘了break语句结束case块
+                    default:
+                    {
+                        cin.clear(); // 清除错误标志
+                        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                        cout << "Invalid Input" << endl;
+                        break;
+                    }
+                    }
+                }
+                g.get_closest_buildings_by_kinds(g.buildings[location].get_building_id(), kinds);
+            }
+            break;
         }
+
         case 5:
             return;
+
         default:
         {
             cout << "Invalid Input" << endl;
@@ -294,6 +337,7 @@ void diary_pattern()
 int main()
 {
     srand(static_cast<unsigned>(time(nullptr)));
+
     home_page();
 
     for (;;)
