@@ -205,7 +205,7 @@ public:
     road() : crowding(0.0), road_distance(0.0), start(nullptr), end(nullptr) {}
 
     // Parameterized constructor
-    road(double crowding, double distance, const std::string &id, building *start, building *end)
+    road(double crowding, double distance, const string &id, building *start, building *end)
         : crowding(crowding), road_distance(distance), road_id(id), start(start), end(end) {}
 
     road(building *start, building *end) : start(start), end(end) {}
@@ -534,26 +534,6 @@ public:
         return *this;
     }
 
-    bool search_road(string target)
-    {
-        for (int i = 0; i < roads.size(); i++)
-        {
-            if (roads[i].get_road_id() == target)
-                return true;
-        }
-        return false;
-    }
-
-    bool search_building(string target)
-    {
-        for (int i = 0; i < buildings.size(); i++)
-        {
-            if (buildings[i].get_building_id() == target)
-                return true;
-        }
-        return false;
-    }
-
     int idToIndex(const building *a)
     {
         try
@@ -608,14 +588,16 @@ public:
     }
 
     // 单次BFS查找最短路径
-    void bfs_distance(int s, int e, Walk &path, double &distance)
+    void bfs_distance(int s, int e, vector<string> &path, double &distance)
     {
         vector<double> dist(MAX_ROWS, DBL_MAX);
         vector<int> prev(MAX_ROWS, -1);
         queue<int> q;
+        vector<bool> visited(MAX_ROWS, false);
 
-        dist[s] = 0;
+        dist[s] = 0.0;
         q.push(s);
+        visited[s] = true;
 
         while (!q.empty())
         {
@@ -624,11 +606,29 @@ public:
 
             for (int v = 1; v <= MAX_NODE_CODE; ++v)
             {
-                if (adjecentMatrix[u][v] != 0 && dist[v] == DBL_MAX)
+                if (adjecentMatrix[u][v] != 0 && !visited[v])
                 {
-                    dist[v] = dist[u] + buildings[u].building_distance(buildings[v]);
-                    prev[v] = u;
-                    q.push(v);
+                    double road_distance = 0.0;
+
+                    for (const auto &road : roads)
+                    {
+                        if ((road.start == &buildings[u - 1] && road.end == &buildings[v - 1]) ||
+                            (road.start == &buildings[v - 1] && road.end == &buildings[u - 1]))
+                        {
+                            road_distance = buildings[v].building_distance(buildings[u]); 
+                            break;
+                        }
+                    }
+
+                    double new_distance = dist[u] + road_distance + static_cast<double>(rand() % 100);
+
+                    if (new_distance < dist[v])
+                    {
+                        dist[v] = new_distance;
+                        prev[v] = u;
+                        q.push(v);
+                        visited[v] = true;
+                    }
                 }
             }
         }
@@ -641,7 +641,7 @@ public:
         }
         distance = dist[e];
     }
-
+   
     // 解决从起点到终点经过指定中间节点的最短路径问题
     void findShortestPathWithMid(building start, building end, vector<building> mid)
     {
@@ -685,14 +685,17 @@ public:
         min_distance_bfs = distance;
     }
 
-    void bfs_time(int s, int e, Walk &path, double &time)
+    // 单次BFS查找最短路径
+    void bfs_time(int s, int e, vector<string> &path, double &distance)
     {
         vector<double> dist(MAX_ROWS, DBL_MAX);
         vector<int> prev(MAX_ROWS, -1);
         queue<int> q;
+        vector<bool> visited(MAX_ROWS, false);
 
-        dist[s] = 0;
+        dist[s] = 0.0;
         q.push(s);
+        visited[s] = true;
 
         while (!q.empty())
         {
@@ -701,11 +704,32 @@ public:
 
             for (int v = 1; v <= MAX_NODE_CODE; ++v)
             {
-                if (adjecentMatrix[u][v] != 0 && dist[v] == DBL_MAX)
+                if (adjecentMatrix[u][v] != 0 && !visited[v])
                 {
-                    dist[v] = dist[u] + buildings[u].building_distance(buildings[v]);
-                    prev[v] = u;
-                    q.push(v);
+                    double road_distance = 0.0;
+                    double crowding = 0.0;
+
+                    for (const auto &road : roads)
+                    {
+                        if ((road.start == &buildings[u - 1] && road.end == &buildings[v - 1]) ||
+                            (road.start == &buildings[v - 1] && road.end == &buildings[u - 1]))
+                        {
+                            road_distance = buildings[v].building_distance(buildings[u]); 
+                            crowding = (road.get_road_crowding() + 1) / 10.0;
+                            break;
+                        }
+                    }
+
+                    road_distance *= crowding;
+                    double new_distance = dist[u] + road_distance + static_cast<double>(rand() % 100);
+
+                    if (new_distance < dist[v])
+                    {
+                        dist[v] = new_distance;
+                        prev[v] = u;
+                        q.push(v);
+                        visited[v] = true;
+                    }
                 }
             }
         }
@@ -716,7 +740,50 @@ public:
             string b = intToId(at);
             path.insert(path.begin(), b);
         }
-        time = dist[e];
+        distance = dist[e];
+    }
+
+    // 解决从起点到终点经过指定中间节点的最短路径问题
+    void findFastestPathWithMid(building start, building end, vector<building> mid)
+    {
+        vector<int> indices;
+        indices.push_back(idToIndex(&start));
+        for (auto &b : mid)
+        {
+            indices.push_back(idToIndex(&b));
+        }
+        indices.push_back(idToIndex(&end));
+
+        min_path_bfs.clear();
+        min_distance_bfs = 0.0;
+
+        for (size_t i = 0; i < indices.size() - 1; ++i)
+        {
+            Walk segment_path;
+            double segment_distance;
+            bfs_time(indices[i], indices[i + 1], segment_path, segment_distance);
+            if (segment_distance == DBL_MAX)
+            {
+                min_distance_bfs = DBL_MAX;
+                return;
+            }
+            if (i > 0)
+            {
+                segment_path.erase(segment_path.begin());
+            }
+            min_path_bfs.insert(min_path_bfs.end(), segment_path.begin(), segment_path.end());
+            min_distance_bfs += segment_distance;
+        }
+    }
+
+    // 解决从起点到终点的最短路径问题
+    void findFastestPath(building start, building end)
+    {
+        int s = idToIndex(&start);
+        int e = idToIndex(&end);
+        double distance;
+        bfs_time(s, e, min_path_bfs, distance);
+        min_distance_bfs = distance;
     }
 
     int printPath(Walk &path, double distance)

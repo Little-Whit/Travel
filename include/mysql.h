@@ -11,187 +11,16 @@
 #include <sstream>
 #include "graph.h"
 
-/// @brief 对数据库中的数据进行设置
-/// @param table_name 数据库中表的名称
-/// @param column_name 表中列的名称
-void set_data_to_database(const string &table_name, const string &column_name)
-{
-    try
-    {
-        // 创建MySQL连接
-        sql::Driver *driver = get_driver_instance();
-        sql::Connection *conn = driver->connect("tcp://127.0.0.1:3306", "admin", "admin123");
-        conn->setSchema("Graphs");
-
-        // 创建Statement对象
-        sql::Statement *stmt = conn->createStatement();
-
-        string table_name = "graphs";
-        string column_name = "graph_kind";
-
-        // 从数据库中查询所有行的ID
-        string idQuery = "SELECT id FROM " + table_name;
-        sql::ResultSet *rs = stmt->executeQuery(idQuery);
-
-        // 遍历每个ID,并为其设置新值
-        while (rs->next())
-        {
-            int id = rs->getInt("id");
-
-            string newValue = to_string(rand() % 10); // 设置的新值，可以通过设置数组完成自动赋值
-            string updateQuery = "UPDATE " + table_name + " SET " + column_name + " = ? WHERE id = ?";
-            unique_ptr<sql::PreparedStatement> pstmt(conn->prepareStatement(updateQuery));
-            pstmt->setString(1, newValue);
-            pstmt->setInt(2, id);
-            pstmt->executeUpdate();
-        }
-
-        delete rs;
-        delete stmt;
-        delete conn;
-    }
-    catch (sql::SQLException &e)
-    {
-        cout << "# ERR: SQLException in " << __FILE__;
-        cout << "(" << __FUNCTION__ << ") on line " << __LINE__ << endl;
-        cout << "# ERR: " << e.what();
-        cout << " (MySQL error code: " << e.getErrorCode();
-        cout << ", SQLState: " << e.getSQLState() << " )" << endl;
-    }
-}
-
-/// @brief 从数据库中获取数据
-/// @param table_name 数据库中表的名称
-/// @param column_name 表中列的名称
-void get_data_from_database(const string &table_name, const string &column_name)
-{
-    try
-    {
-        sql::Driver *driver = get_driver_instance();
-        sql::Connection *conn = driver->connect("tcp://127.0.0.1", "admin", "admin123");
-        sql::PreparedStatement *prep_stmt = nullptr;
-        sql::ResultSet *res = nullptr; // 遍历所有行
-        sql::ResultSet *rs = nullptr;  // 遍历所有符合条件的行数
-        conn->setSchema("Graphs");
-        string update_query = "SELECT " + column_name + " FROM " + table_name + " LIMIT 100";
-        prep_stmt = conn->prepareStatement(update_query);
-        res = prep_stmt->executeQuery();
-
-        while (res->next())
-        {
-            cout << res->getString(column_name) << endl;
-        }
-    }
-    catch (sql::SQLException &e)
-    {
-        cerr << "SQLException: " << e.what() << endl;
-        cerr << "MySQL error code: " << e.getErrorCode() << endl;
-        cerr << "SQLState: " << e.getSQLState() << endl;
-    }
-}
-
-void set_graph_to_database(const graph &g, const string &graph_name, const string &description)
-{
-    try
-    {
-        sql::mysql::MySQL_Driver *driver = sql::mysql::get_mysql_driver_instance();
-        unique_ptr<sql::Connection> con(driver->connect("tcp://127.0.0.1:3306", "admin", "admin123"));
-        con->setSchema("Graphs");
-
-        // 插入图信息
-        unique_ptr<sql::PreparedStatement> pstmt(con->prepareStatement("INSERT INTO graphs (graph_name, description) VALUES (?, ?)"));
-        pstmt->setString(1, graph_name);
-        pstmt->setString(2, description);
-        pstmt->execute();
-
-        // 获取插入的 graph_id
-        unique_ptr<sql::Statement> stmt(con->createStatement());
-        unique_ptr<sql::ResultSet> res(stmt->executeQuery("SELECT LAST_INSERT_ID() as graph_id"));
-        int graph_id = 0;
-        if (res->next())
-        {
-            graph_id = res->getInt("graph_id");
-        }
-
-        // 插入 buildings
-        pstmt.reset(con->prepareStatement("INSERT INTO buildings (axis_x, axis_y, building_id, building_kind) VALUES (?, ?, ?, ?)"));
-        for (const auto &b : g.buildings)
-        {
-            pstmt->setInt(1, b.get_x());
-            pstmt->setInt(2, b.get_y());
-            pstmt->setString(3, b.get_building_id());
-            pstmt->setInt(4, b.get_building_kind());
-            pstmt->execute();
-        }
-
-        // 获取所有 building 的 ID
-        vector<int> building_ids;
-        res.reset(stmt->executeQuery("SELECT id FROM buildings ORDER BY id DESC LIMIT " + to_string(g.buildings.size())));
-        while (res->next())
-        {
-            building_ids.push_back(res->getInt("id"));
-        }
-        reverse(building_ids.begin(), building_ids.end());
-
-        // 插入 roads
-        pstmt.reset(con->prepareStatement("INSERT INTO roads (start_building_id, end_building_id, crowding,road_distance, road_id) VALUES (?, ?, ?, ?,?)"));
-        for (const auto &r : g.roads)
-        {
-            int start_index = distance(g.buildings.begin(), find(g.buildings.begin(), g.buildings.end(), *r.start));
-            int end_index = distance(g.buildings.begin(), find(g.buildings.begin(), g.buildings.end(), *r.end));
-            pstmt->setInt(1, building_ids[start_index]);
-            pstmt->setInt(2, building_ids[end_index]);
-            pstmt->setDouble(3, r.get_road_crowding());
-            pstmt->setDouble(4, r.get_road_distance());
-            pstmt->setString(5, r.get_road_id());
-            pstmt->execute();
-        }
-
-        // 获取所有 road 的 ID
-        vector<int> road_ids;
-        res.reset(stmt->executeQuery("SELECT id FROM roads ORDER BY id DESC LIMIT " + to_string(g.roads.size())));
-        while (res->next())
-        {
-            road_ids.push_back(res->getInt("id"));
-        }
-        reverse(road_ids.begin(), road_ids.end());
-
-        // 插入 graph_buildings
-        pstmt.reset(con->prepareStatement("INSERT INTO graph_buildings (graph_id, building_id) VALUES (?, ?)"));
-        for (const auto &building_id : building_ids)
-        {
-            pstmt->setInt(1, graph_id);
-            pstmt->setInt(2, building_id);
-            pstmt->execute();
-        }
-
-        // 插入 graph_roads
-        pstmt.reset(con->prepareStatement("INSERT INTO graph_roads (graph_id, road_id) VALUES (?, ?)"));
-        for (const auto &road_id : road_ids)
-        {
-            pstmt->setInt(1, graph_id);
-            pstmt->setInt(2, road_id);
-            pstmt->execute();
-        }
-
-        cout << "Graph stored successfully with graph_id: " << graph_id << endl;
-    }
-
-    catch (sql::SQLException &e)
-    {
-        cerr << "SQLException: " << e.what() << endl;
-        cerr << "MySQL error code: " << e.getErrorCode() << endl;
-        cerr << "SQLState: " << e.getSQLState() << endl;
-    }
-}
-
 graph get_graph_from_database(const string &graph_name)
 {
-    // Connect to the database
     try
     {
-        sql::mysql::MySQL_Driver *driver = sql::mysql::get_mysql_driver_instance();
-        unique_ptr<sql::Connection> con(driver->connect("tcp://127.0.0.1:3306", "admin", "admin123"));
+        sql::mysql::MySQL_Driver *driver;
+        sql::Connection *con;
+
+        driver = sql::mysql::get_mysql_driver_instance();
+        con = driver->connect("tcp://127.0.0.1:3306", "admin", "admin123");
+
         con->setSchema("Graphs");
 
         // Create a prepared statement to fetch graph_id
@@ -299,7 +128,7 @@ graph get_graph_from_database(const string &graph_name)
             {
                 if (start_id == b.get_building_id())
                     start = &b;
-                    
+
                 if (end_id == b.get_building_id())
                     end = &b;
             }
@@ -335,11 +164,9 @@ void print_graph_info()
     sql::mysql::MySQL_Driver *driver;
     sql::Connection *con;
 
-    // 创建MySQL连接
     driver = sql::mysql::get_mysql_driver_instance();
     con = driver->connect("tcp://127.0.0.1:3306", "admin", "admin123");
 
-    // 连接到数据库
     con->setSchema("Graphs");
 
     // 执行查询语句
@@ -361,24 +188,19 @@ void print_graph_info()
     delete con;
 }
 
-/// @brief 查询图的函数
-/// @param user_choice
 void order_graph(const int &user_choice)
 {
-
     sql::mysql::MySQL_Driver *driver;
-    sql::Connection *conn;
+    sql::Connection *con;
 
-    // 创建MySQL连接
     driver = sql::mysql::get_mysql_driver_instance();
-    conn = driver->connect("tcp://127.0.0.1:3306", "admin", "admin123");
+    con = driver->connect("tcp://127.0.0.1:3306", "admin", "admin123");
 
-    // 连接到数据库
-    conn->setSchema("Graphs");
+    con->setSchema("Graphs");
 
     sql::Statement *stmt;
     sql::ResultSet *res;
-    stmt = conn->createStatement();
+    stmt = con->createStatement();
     switch (user_choice)
     {
     case 1:
@@ -399,7 +221,7 @@ void order_graph(const int &user_choice)
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
         getline(cin, target);
         string updateQuery = "SELECT graph_name, description FROM graphs WHERE graph_kind LIKE ? ORDER BY graph_score DESC, graph_heat DESC LIMIT 10";
-        unique_ptr<sql::PreparedStatement> pstmt(conn->prepareStatement(updateQuery));
+        unique_ptr<sql::PreparedStatement> pstmt(con->prepareStatement(updateQuery));
         pstmt->setString(1, "%" + target + "%");
         res = pstmt->executeQuery();
         break;
@@ -412,7 +234,7 @@ void order_graph(const int &user_choice)
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
         getline(cin, target);
         string updateQuery = "SELECT graph_name, description FROM graphs WHERE graph_name LIKE ? ORDER BY graph_score DESC, graph_heat DESC LIMIT 10";
-        unique_ptr<sql::PreparedStatement> pstmt(conn->prepareStatement(updateQuery));
+        unique_ptr<sql::PreparedStatement> pstmt(con->prepareStatement(updateQuery));
         pstmt->setString(1, "%" + target + "%");
         res = pstmt->executeQuery();
         break;
@@ -436,5 +258,5 @@ void order_graph(const int &user_choice)
     // 释放内存和关闭连接
     delete res;
     delete stmt;
-    delete conn;
+    delete con;
 }

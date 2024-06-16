@@ -1,14 +1,15 @@
-#include "user.h"
-#include "mysql.cpp"
-#include "diary.cpp"
+#include "include/user.h"
+#include "include/mysql.h"
+#include "include/diary.h"
 
-int user_choice;
 string target_attraction;
 
 void home_page()
 {
+    int user_choice;
     for (;;)
     {
+        int user_choice;
         cout << "1.Sign Up" << endl;
         cout << "2.Log In" << endl;
         cin >> user_choice;
@@ -39,6 +40,7 @@ void home_page()
 void attraction_pattern()
 {
     graph g;
+    int user_choice;
     bool exitLoop = false;
     while (!exitLoop)
     {
@@ -94,7 +96,6 @@ void attraction_pattern()
         }
     }
 
-    int attraction_user_choice;
     for (;;)
     {
         cout << "1.Route Plan By Length" << endl;
@@ -102,9 +103,9 @@ void attraction_pattern()
         cout << "3.Display Surround Buildings" << endl;
         cout << "4.Display Specific Buildings" << endl;
         cout << "5.Exit" << endl;
-        cin >> attraction_user_choice;
+        cin >> user_choice;
 
-        switch (attraction_user_choice)
+        switch (user_choice)
         {
         case 1:
         {
@@ -114,11 +115,6 @@ void attraction_pattern()
             int useCrowding;
             vector<int> mid_ids;
             string location;
-
-            cout << "1.Shortest Time strategy " << endl; 
-            cout << "2.Shortest Distance strategy " << endl; 
-            cout << "Please Choose Strategy: ";
-            cin >> useCrowding;
 
             cout << "Please Enter Start ID: ";
             cin >> start_id;
@@ -134,18 +130,44 @@ void attraction_pattern()
                 cin >> mid_ids[i];
             }
 
-            cout << "Shortest Path with Mid Points:" << endl;
             vector<building> mid;
             for (int id : mid_ids)
             {
                 mid.push_back(g.buildings[id]);
             }
-            g.findShortestPathWithMid(g.buildings[start_id], g.buildings[end_id], mid);
-            g.printShortestPathBFS();
 
-            cout << "\nShortest Path without Mid Points:" << endl;
-            g.findShortestPath(g.buildings[start_id], g.buildings[end_id]);
-            g.printShortestPathBFS();
+            cout << "1.Shortest Time strategy " << endl;
+            cout << "2.Shortest Distance strategy " << endl;
+            cout << "Please Choose Strategy: ";
+            cin >> useCrowding;
+
+            if (useCrowding == 1)
+            {
+                cout << "Shortest Path with Mid Points:" << endl;
+                g.findFastestPathWithMid(g.buildings[start_id], g.buildings[end_id], mid);
+                g.printShortestPathBFS();
+
+                cout << "\nShortest Path without Mid Points:" << endl;
+                g.findFastestPath(g.buildings[start_id], g.buildings[end_id]);
+                g.printShortestPathBFS();
+            }
+            else if (useCrowding == 2)
+            {
+                cout << "Shortest Path with Mid Points:" << endl;
+                g.findShortestPathWithMid(g.buildings[start_id], g.buildings[end_id], mid);
+                g.printShortestPathBFS();
+
+                cout << "\nShortest Path without Mid Points:" << endl;
+                g.findShortestPath(g.buildings[start_id], g.buildings[end_id]);
+                g.printShortestPathBFS();
+            }
+            else
+            {
+                cout << "Invalid Input" << endl;
+                cin.clear(); // 清除错误标志
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                break;
+            }
             break;
         }
 
@@ -336,8 +358,8 @@ void diary_pattern()
 
 int main()
 {
+    int user_choice;
     srand(static_cast<unsigned>(time(nullptr)));
-
     home_page();
 
     for (;;)
