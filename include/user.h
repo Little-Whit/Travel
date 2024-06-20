@@ -13,86 +13,63 @@
 
 void user_signup()
 {
-    try
-    {
-        // 连接 MySQL 数据库
-        sql::Driver *driver = get_driver_instance();
-        sql::Connection *con = driver->connect("tcp://127.0.0.1:3306", "admin", "admin123");
-        con->setSchema("Users");
 
-        // 注册新用户
-        string username, password;
-        cout << "Enter username: ";
-        cin >> username;
-        cout << "Enter password: ";
-        cin >> password;
+    // 连接 MySQL 数据库
+    sql::Driver *driver = get_driver_instance();
+    sql::Connection *con = driver->connect("tcp://127.0.0.1:3306", "admin", "admin123");
+    con->setSchema("Users");
 
-        sql::PreparedStatement *pstmt = con->prepareStatement("INSERT INTO users (username, password) VALUES (?, ?)");
-        pstmt->setString(1, username);
-        pstmt->setString(2, password);
-        pstmt->execute();
-        cout << "User registered successfully!" << endl;
+    // 注册新用户
+    string username, password;
+    cout << "Enter username: ";
+    cin >> username;
+    cout << "Enter password: ";
+    cin >> password;
 
-        // 清理资源
-        delete pstmt;
-        delete con;
-    }
+    sql::PreparedStatement *pstmt = con->prepareStatement("INSERT INTO users (username, password) VALUES (?, ?)");
+    pstmt->setString(1, username);
+    pstmt->setString(2, password);
+    pstmt->execute();
+    cout << "User registered successfully!" << endl;
 
-    catch (sql::SQLException &e)
-    {
-        cout << "# ERR: SQLException in " << __FILE__;
-        cout << "(" << __FUNCTION__ << ") on line " << __LINE__ << endl;
-        cout << "# ERR: " << e.what();
-        cout << " (MySQL error code: " << e.getErrorCode();
-        cout << ", SQLState: " << e.getSQLState() << ")" << endl;
-    }
+    // 清理资源
+    delete pstmt;
+    delete con;
 }
 
 bool user_login()
 {
-    try
+
+    // 连接 MySQL 数据库
+    sql::Driver *driver = get_driver_instance();
+    sql::Connection *con = driver->connect("tcp://127.0.0.1:3306", "admin", "admin123");
+    con->setSchema("Users");
+
+    // 注册新用户
+    string username, password;
+    cout << "Enter username: ";
+    cin >> username;
+    cout << "Enter password: ";
+    cin >> password;
+
+    sql::PreparedStatement *pstmt = con->prepareStatement("SELECT * FROM users WHERE username = ? AND password = ?");
+    pstmt->setString(1, username);
+    pstmt->setString(2, password);
+    sql::ResultSet *res = pstmt->executeQuery();
+
+    if (res->next())
     {
-        // 连接 MySQL 数据库
-        sql::Driver *driver = get_driver_instance();
-        sql::Connection *con = driver->connect("tcp://127.0.0.1:3306", "admin", "admin123");
-        con->setSchema("Users");
-
-        // 注册新用户
-        string username, password;
-        cout << "Enter username: ";
-        cin >> username;
-        cout << "Enter password: ";
-        cin >> password;
-
-        sql::PreparedStatement *pstmt = con->prepareStatement("SELECT * FROM users WHERE username = ? AND password = ?");
-        pstmt->setString(1, username);
-        pstmt->setString(2, password);
-        sql::ResultSet *res = pstmt->executeQuery();
-
-        if (res->next())
-        {
-            cout << "Login successful!" << endl;
-            return true;
-        }
-        else
-        {
-            cout << "Invalid username or password." << endl;
-        }
-
-        // 清理资源
-        delete res;
-        delete pstmt;
-        delete con;
-        return false;
+        cout << "Login successful!" << endl;
+        return true;
+    }
+    else
+    {
+        cout << "Invalid username or password." << endl;
     }
 
-    catch (sql::SQLException &e)
-    {
-        cout << "# ERR: SQLException in " << __FILE__;
-        cout << "(" << __FUNCTION__ << ") on line " << __LINE__ << endl;
-        cout << "# ERR: " << e.what();
-        cout << " (MySQL error code: " << e.getErrorCode();
-        cout << ", SQLState: " << e.getSQLState() << ")" << endl;
-        return false;
-    }
+    // 清理资源
+    delete res;
+    delete pstmt;
+    delete con;
+    return false;
 }
